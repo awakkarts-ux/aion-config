@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:" />
+<title>Aion Config</title>
+<link rel="stylesheet" href="app.css" />
+</head>
+<body>
+
+<header class="titlebar">
+  <div class="brand"><i></i></div>
+  <div class="tb-title"><b>Aion Config</b><small id="app-version">v—</small></div>
+  <button class="tb-chip" id="folder-btn" type="button" title="Выбрать папку игры">
+    <span class="dot" id="folder-dot"></span>
+    <b id="folder-name">Папка игры не выбрана</b>
+    <small id="folder-mode"></small>
+  </button>
+  <div class="drag"></div>
+  <button class="btn btn--ghost" id="app-check-update" title="Проверить обновления">Обновления</button>
+  <button class="btn btn--update" id="app-update" hidden>Обновить</button>
+  <button class="btn btn--ghost" id="restore-btn" disabled title="Вернуть файлы к состоянию до первого сохранения из этой программы">Вернуть как было</button>
+  <button class="btn btn--primary" id="save-btn" disabled>Сохранить<i class="savedot" id="dirty" hidden title="есть несохранённые правки"></i></button>
+  <div class="wbtns">
+    <button class="wbtn" id="w-min" title="Свернуть"><svg viewBox="0 0 10 10"><path d="M1 5h8" /></svg></button>
+    <button class="wbtn" id="w-max" title="Развернуть"><svg viewBox="0 0 10 10"><rect x="1.5" y="1.5" width="7" height="7" rx="1.5" /></svg></button>
+    <button class="wbtn wbtn--close" id="w-close" title="Закрыть"><svg viewBox="0 0 10 10"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" /></svg></button>
+  </div>
+</header>
+
+<div class="shell">
+  <nav class="rail" id="rail">
+    <div class="rail__group">Настройки</div>
+    <button class="nav is-active" data-view="anim"><span class="nav__ic" data-ic="anim"></span><span>Анимации</span><em data-badge="anim"></em></button>
+    <button class="nav" data-view="gfx"><span class="nav__ic" data-ic="gfx"></span><span>Графика</span><em data-badge="gfx"></em></button>
+    <button class="nav" data-view="sound"><span class="nav__ic" data-ic="sound"></span><span>Звук</span><em data-badge="sound"></em></button>
+    <button class="nav" data-view="window"><span class="nav__ic" data-ic="window"></span><span>Окно и камера</span><em data-badge="window"></em></button>
+    <div class="rail__group">Файлы</div>
+    <button class="nav" data-view="all"><span class="nav__ic" data-ic="all"></span><span>Все параметры</span><em data-badge="all"></em></button>
+    <button class="nav" data-view="files"><span class="nav__ic" data-ic="files"></span><span>Что запишется</span></button>
+    <div class="rail__spacer"></div>
+    <button class="nav" data-view="guide"><span class="nav__ic" data-ic="guide"></span><span>Инструкция</span></button>
+  </nav>
+
+  <main class="stage">
+    <!-- пустое состояние -->
+    <section class="view is-active" data-view="start">
+      <div class="empty"><div class="empty__box">
+        <div class="brand"><i></i></div>
+        <h1>Выбери папку игры</h1>
+        <p class="lede" style="margin:0 auto">Ту, где лежит <code>system.cfg</code>: корневая папка клиента, рядом с <code>bin64</code> и <code>data</code>.
+          Программа прочитает настройки и создаст <code>system.ovr</code>, если его ещё нет.</p>
+        <div class="row">
+          <button class="btn btn--primary" id="pick-btn">Выбрать папку…</button>
+        </div>
+      </div></div>
+    </section>
+
+    <section class="view" data-view="anim">
+      <h1>Анимации</h1>
+      <p class="lede">Эти параметры пишутся в <code>system.ovr</code>: клиент читает его при запуске поверх <code>system.cfg</code> и сам не перезаписывает.
+        Выключенный параметр просто не попадает в файл, и клиент берёт своё значение по умолчанию.</p>
+      <div class="banner">
+        <b>Быстрые переходы между анимациями</b>
+        <p>Главное здесь — <code style="background:rgba(0,0,0,.25);color:#fff">g_blend_time</code> и <code style="background:rgba(0,0,0,.25);color:#fff">g_blendout_time</code>:
+          время плавного перехода от одного движения к другому. Почти ноль — персонаж сразу выходит из умения в следующее действие.
+          Значения взяты из старых гайдов и никем официально не описаны: проверяй в игре.</p>
+      </div>
+      <div class="row" style="margin-bottom:14px">
+        <span class="muted">Быстро:</span>
+        <button class="btn btn--sm" data-preset="max">Всё на максимум</button>
+        <button class="btn btn--sm" data-preset="blend">Только переходы</button>
+        <button class="btn btn--sm btn--ghost" data-preset="off">Выключить всё</button>
+      </div>
+      <div class="grid" id="anim-grid"></div>
+      <h2>Свои строки для system.ovr</h2>
+      <p class="lede">Всё, что здесь, запишется в <code>system.ovr</code> как есть: по одной настройке в строке, в формате <code>имя = "значение"</code>.
+        Строки, которые были в файле и не относятся к карточкам выше, тоже лежат здесь.</p>
+      <textarea class="mono" id="ovr-extra" spellcheck="false" placeholder='например: g_maxfps = "144"'></textarea>
+    </section>
+
+    <section class="view" data-view="gfx">
+      <h1>Графика</h1>
+      <p class="lede">Уровни из меню настроек игры и скрытые переключатели. Цифры — те же, что в меню: чем больше, тем красивее и тяжелее.
+        <code>GENERAL = -2</code> означает «свои настройки», а не пресет.</p>
+      <h2>Переключатели</h2>
+      <div class="grid" id="gfx-toggles"></div>
+      <h2>Уровни качества</h2>
+      <div class="grid" id="gfx-levels"></div>
+      <h2>Улучшенный рендер (MRT)</h2>
+      <p class="lede">Отдельный набор уровней для режима улучшенного рендера.</p>
+      <div class="grid" id="gfx-mrt"></div>
+    </section>
+
+    <section class="view" data-view="sound">
+      <h1>Звук</h1>
+      <p class="lede">Громкость каждой категории, от 0 до 100%. Общая громкость умножается на все остальные.</p>
+      <div class="grid" id="sound-grid"></div>
+    </section>
+
+    <section class="view" data-view="window">
+      <h1>Окно и камера</h1>
+      <p class="lede">Разрешение, режим окна и дальность камеры. Размер окна клиент запоминает сам при выходе.</p>
+      <div class="grid" id="window-grid"></div>
+    </section>
+
+    <section class="view" data-view="all">
+      <h1>Все параметры</h1>
+      <p class="lede">Полный список строк из <code>system.cfg</code>. Правь значение прямо в поле, добавляй новые строки или убирай лишние.</p>
+      <div class="toolbar">
+        <input type="search" id="all-search" placeholder="Поиск по имени или значению" />
+        <input type="text" class="mono" id="new-key" placeholder="новый_параметр" style="width:220px" />
+        <input type="text" class="mono" id="new-val" placeholder="значение" style="width:140px" />
+        <button class="btn btn--sm" id="add-btn">Добавить</button>
+      </div>
+      <table class="table"><tbody id="all-body"></tbody></table>
+    </section>
+
+    <section class="view" data-view="files">
+      <h1>Что запишется</h1>
+      <p class="lede">Так будут выглядеть файлы после сохранения. <span style="color:var(--yellow)">Жёлтым</span> — изменённые строки, <span style="color:var(--green)">зелёным</span> — новые.</p>
+      <div class="files">
+        <div class="card"><div class="card__head"><div><div class="card__title">system.cfg</div><div class="card__key" id="cfg-stat"></div></div>
+          <button class="btn btn--sm btn--ghost" data-download="cfg">Скачать</button></div><pre class="file" id="cfg-preview"></pre></div>
+        <div class="card"><div class="card__head"><div><div class="card__title">system.ovr</div><div class="card__key" id="ovr-stat"></div></div>
+          <button class="btn btn--sm btn--ghost" data-download="ovr">Скачать</button></div><pre class="file" id="ovr-preview"></pre></div>
+      </div>
+    </section>
+
+    <section class="view" data-view="guide">
+      <h1>Инструкция</h1>
+      <p class="lede">Как пользоваться и что важно знать.</p>
+      <ol class="steps">
+        <li><b>Закрой игру.</b> Программа сама проверит, не запущен ли клиент. При выходе клиент перезаписывает <code>system.cfg</code> своими значениями, поэтому правки, сохранённые при запущенной игре, пропадут.</li>
+        <li><b>Выбери папку игры</b> кнопкой в шапке: ту, где лежит <code>system.cfg</code>. Программа запомнит её и в следующий раз откроет сама.</li>
+        <li><b>Настрой</b> анимации, графику, звук. Рядом с разделом появится счётчик изменённых параметров.</li>
+        <li><b>Проверь</b> в разделе «Что запишется» и нажми <b>Сохранить</b>.</li>
+        <li><b>Запусти игру</b>. Если переходы анимаций не изменились, значит, твоя версия клиента не читает <code>system.ovr</code>.</li>
+      </ol>
+      <h2>Резервные копии</h2>
+      <p class="lede">При первом сохранении программа кладёт рядом <code>system.cfg.editor-backup</code> (и <code>system.ovr.editor-backup</code>, если ovr уже был).
+        Эти копии больше не перезаписываются, поэтому кнопка «Вернуть как было» всегда возвращает файлы к виду до первой правки отсюда.
+        Если <code>system.ovr</code> раньше не было, при возврате он удаляется.</p>
+      <h2>Обновления</h2>
+      <p class="lede">Программа сама проверяет обновления при запуске и раз в три часа. Когда выйдет новая версия, в шапке появится кнопка «Обновить»: она скачает версию с GitHub и перезапустит программу. Настройки и выбранная папка сохраняются.</p>
+      <h2>Важно знать</h2>
+      <ol class="steps">
+        <li>Параметры анимаций нигде официально не описаны. Значения — из гайдов сообщества, работают не на всех версиях клиента.</li>
+        <li>Некоторые DPS-метры измеряют скорость анимации умений и могут подсвечивать слишком быструю.</li>
+        <li>Программа ничего никуда не отправляет: файлы читаются и пишутся только в выбранной папке. В интернет она ходит только за обновлениями на GitHub.</li>
+      </ol>
+    </section>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+<script src="cfg.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

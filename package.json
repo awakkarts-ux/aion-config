@@ -1,0 +1,63 @@
+{
+  "name": "aion-config",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Aion Config: настройки клиента Aion (system.cfg) и переопределения system.ovr — анимации, графика, звук",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "selftest": "node tools/selftest.js",
+    "build:dir": "electron-builder --dir",
+    "build:win": "electron-builder --win nsis"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "author": "Awake",
+  "devDependencies": {
+    "electron": "^43.4.1",
+    "electron-builder": "^26.18.0"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.11"
+  },
+  "build": {
+    "appId": "com.awake.aion-config",
+    "productName": "Aion Config",
+    "asar": true,
+    "npmRebuild": false,
+    "files": [
+      "src/**/*",
+      "package.json",
+      "icon.ico",
+      "!**/*.map"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "artifactName": "Aion-Config-Setup-${version}.${ext}"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "awakkarts-ux",
+      "repo": "aion-config",
+      "releaseType": "release"
+    }
+  }
+}
