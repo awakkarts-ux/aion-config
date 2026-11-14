@@ -127,11 +127,17 @@
     <section class="view" data-view="all">
       <h1>Все параметры</h1>
       <p class="lede">Полный список строк из <code>system.cfg</code>. Правь значение прямо в поле, добавляй новые строки или убирай лишние.</p>
+      <div class="card addrow">
+        <div class="card__title">Добавить строку в system.cfg</div>
+        <div class="row">
+          <label class="fld"><span>Имя параметра</span><input type="text" class="mono" id="new-key" placeholder="например r_DisplayInfo" /></label>
+          <label class="fld fld--val"><span>Значение</span><input type="text" class="mono" id="new-val" placeholder="значение" /></label>
+          <button class="btn btn--sm btn--primary" id="add-btn">Добавить</button>
+        </div>
+      </div>
       <div class="toolbar">
-        <input type="search" id="all-search" placeholder="Поиск по имени или значению" />
-        <input type="text" class="mono" id="new-key" placeholder="новый_параметр" style="width:220px" />
-        <input type="text" class="mono" id="new-val" placeholder="значение" style="width:140px" />
-        <button class="btn btn--sm" id="add-btn">Добавить</button>
+        <label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg>
+          <input type="search" id="all-search" placeholder="Найти строку в списке ниже" /></label>
       </div>
       <table class="table"><tbody id="all-body"></tbody></table>
     </section>

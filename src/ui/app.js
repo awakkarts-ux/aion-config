@@ -423,10 +423,14 @@ document.querySelectorAll('[data-reveal]').forEach(b => b.onclick = () => S.dir 
 $('#save-btn').onclick = save; $('#restore-btn').onclick = restore;
 $('#ovr-extra').oninput = e => { S.extra = e.target.value; update(); };
 $('#all-search').oninput = renderAll2;
+['#new-key', '#new-val'].forEach(s => $(s).addEventListener('keydown', e => { if (e.key === 'Enter') $('#add-btn').click(); }));
 $('#add-btn').onclick = () => {
   const k = $('#new-key').value.trim(), v = $('#new-val').value.trim().replace(/"/g, '');
-  if (!/^[A-Za-z0-9_.]+$/.test(k)) { toast('Имя параметра — латиница, цифры, _ и точка.', true); return; }
-  S.cfg.set(k, v); $('#new-key').value = $('#new-val').value = ''; update(); renderAll2(); toast(`Добавлено: ${k}`);
+  if (!/^[A-Za-z0-9_.]+$/.test(k)) { toast(k ? 'Имя параметра — латиница, цифры, _ и точка, без пробелов.' : 'Впиши имя параметра в поле «Имя параметра».', true); $('#new-key').focus(); return; }
+  if (!S.cfgDoc) return;
+  const had = S.cfg.has(k);
+  S.cfg.set(k, v); $('#new-key').value = $('#new-val').value = ''; $('#all-search').value = k; update(); renderAll2();
+  toast(had ? `Изменено: ${k} = "${v}". Не забудь «Сохранить».` : `Добавлено: ${k} = "${v}". Не забудь «Сохранить».`);
 };
 document.querySelectorAll('[data-preset]').forEach(b => b.onclick = () => {
   const p = b.dataset.preset;
