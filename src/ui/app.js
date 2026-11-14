@@ -1,11 +1,43 @@
 'use strict';
 /* ---------------- справочник параметров ---------------- */
-const ANIM = [
-  { key: 'ac_disableFancyTransitions', title: 'Без плавных переходов', bool: true, max: '1', main: true,
-    desc: 'Отключает плавное перетекание одного движения в другое: персонаж сразу переходит из бега в умение и из умения в стойку. Проверено на Aion Empire (Classic) — анимации заметно резче.' },
-  { key: 'g_chainSkillIndicateDelay', title: 'Подсветка цепочки', desc: 'Задержка, с которой появляется подсветка следующего умения в цепочке. На Classic не проверено.', presets: ['0.1', '0.01', '0.001'], max: '0.001' },
-  { key: 'g_chainSkillChangeCooltimeDelay', title: 'Смена умения в цепочке', desc: 'Задержка перед сменой иконки цепочного умения на следующее. На Classic не проверено.', presets: ['0.1', '0.01', '0.001'], max: '0.001' },
+/* Параметры раздела «Анимации и отклик». kind: 'bool' — выбор 0/1, 'num' — варианты и своё значение.
+   rec — рекомендуемое значение (ставится при включении), status — что известно про Classic 2023. */
+const ANIM_GROUPS = [
+  ['anim', 'Анимации'],
+  ['load', 'Загрузка анимаций'],
+  ['chain', 'Цепочки умений'],
+  ['input', 'Мышь, камера и отклик'],
 ];
+const ANIM = [
+  { key: 'ac_disableFancyTransitions', group: 'anim', kind: 'bool', rec: '1', main: true, inRec: true, status: 'ok',
+    title: 'Без плавных переходов', desc: '1 — персонаж сразу переходит из бега в умение и из умения в стойку, без плавного перетекания. 0 — обычные переходы.' },
+  { key: 'ac_clampTimeAnimation', group: 'anim', kind: 'num', rec: '0', presets: ['0.3', '0.1', '0'], status: 'none',
+    title: 'Подтягивание анимации', desc: 'За сколько секунд движок «дотягивает» анимацию до реального положения персонажа. По умолчанию около 0.3.' },
+  { key: 'ac_clampTimeEntity', group: 'anim', kind: 'num', rec: '0', presets: ['0.3', '0.1', '0'], status: 'none',
+    title: 'Подтягивание модели', desc: 'То же для модели персонажа. Проверяй вместе с предыдущим.' },
+  { key: 'ac_animErrorClamp', group: 'anim', kind: 'bool', rec: '0', status: 'none',
+    title: 'Удержание анимации в пределах ошибки', desc: '1 — движок не даёт анимации отходить от положения персонажа (по умолчанию). 0 — отключено.' },
+  { key: 'ca_PrecacheAnimationSets', group: 'load', kind: 'bool', rec: '1', inRec: true, status: 'safe',
+    title: 'Загружать анимации заранее', desc: '1 — без подвисания при первом применении умения после входа в игру.' },
+  { key: 'ca_UseAnimationsCache', group: 'load', kind: 'bool', rec: '1', inRec: true, status: 'safe',
+    title: 'Кеш анимаций', desc: '1 — анимации держатся в памяти, меньше микрофризов.' },
+  { key: 'g_chainSkillIndicateDelay', group: 'chain', kind: 'num', rec: '0.001', presets: ['0.1', '0.01', '0.001'], status: 'unknown',
+    title: 'Подсветка цепочки', desc: 'Задержка, с которой появляется подсветка следующего умения в цепочке.' },
+  { key: 'g_chainSkillChangeCooltimeDelay', group: 'chain', kind: 'num', rec: '0.001', presets: ['0.1', '0.01', '0.001'], status: 'unknown',
+    title: 'Смена умения в цепочке', desc: 'Задержка перед сменой иконки цепочного умения на следующее.' },
+  { key: 'i_mouse_smooth', group: 'input', kind: 'num', rec: '0', presets: ['0', '1', '5'], inRec: true, status: 'safe',
+    title: 'Сглаживание мыши', desc: '0 — выключено, камера сразу отзывается на мышь. Больше — плавнее, но с запаздыванием.' },
+  { key: 'i_mouse_accel', group: 'input', kind: 'num', rec: '0', presets: ['0', '0.5', '1'], inRec: true, status: 'safe',
+    title: 'Ускорение мыши', desc: '0 — поворот камеры зависит только от расстояния, на которое сдвинута мышь.' },
+  { key: 'i_mouse_inertia', group: 'input', kind: 'num', rec: '0', presets: ['0', '1', '2'], inRec: true, status: 'safe',
+    title: 'Инерция камеры', desc: '0 — камера останавливается сразу, как остановилась мышь.' },
+  { key: 'r_VSync', group: 'input', kind: 'bool', rec: '0', status: 'none',
+    title: 'Вертикальная синхронизация', desc: '0 — без задержки ввода, но возможны «разрывы» картинки. 1 — ровная картинка.' },
+];
+const STATUS = {
+  ok: ['работает', 'st--ok'], safe: ['безопасно', 'st--safe'],
+  none: ['разницы не заметили', 'st--none'], unknown: ['не проверено', 'st--unknown'],
+};
 /* Строки, которые проверили на Classic 2023 и которые ничего не дают: предлагаем убрать. */
 const LEGACY = ['g_blend_time', 'g_blendout_time'];
 const GFX_TOGGLES = [
@@ -124,6 +156,38 @@ function sw(on, onChange) {
 }
 const fmt = (v, digits) => digits ? Number(v).toFixed(digits) : String(Math.round(v));
 
+function animCard(a) {
+  const val = getA(a.key), on = val !== undefined;
+  const c = cardHead(a.title, a.key, a.desc);
+  if (a.main) c.classList.add('card--main');
+  if (animChanged(a.key)) c.classList.add('is-changed');
+  const st = STATUS[a.status];
+  const head = c.querySelector('.card__head');
+  head.querySelector('.card__key').insertAdjacentHTML('beforeend', ` <span class="st ${st[1]}">${st[0]}</span>`);
+  head.append(sw(on, v => { setA(a.key, v ? a.rec : undefined); update(); renderAnim(); }));
+  const row = el('div', 'row');
+  const seg = el('div', 'seg');
+  for (const p of a.kind === 'bool' ? ['0', '1'] : a.presets) {
+    const b = el('button', val === p ? 'is-on' : '', p + (p === a.rec ? ' <i>реком.</i>' : '')); b.type = 'button';
+    b.onclick = () => { setA(a.key, p); update(); renderAnim(); }; seg.append(b);
+  }
+  row.append(seg);
+  if (a.kind === 'num') {
+    const inp = el('input', 'mono'); inp.type = 'text'; inp.style.width = '110px';
+    inp.value = on && !a.presets.includes(val) ? val : ''; inp.placeholder = 'своё';
+    inp.onchange = () => {
+      const v = inp.value.trim().replace(',', '.').replace(/"/g, '');
+      if (v !== '' && !/^-?\d+(\.\d+)?$/.test(v)) { toast('Значение — число, например 0.05', true); inp.value = ''; return; }
+      setA(a.key, v === '' ? undefined : v); update(); renderAnim();
+    };
+    row.append(inp);
+  }
+  row.append(el('span', 'muted', on ? '' : 'строки нет — клиент берёт своё значение'));
+  if (!on) seg.style.opacity = '.5';
+  c.append(row);
+  return c;
+}
+
 function renderAnim() {
   const tg = $('#anim-target'); tg.innerHTML = '';
   for (const [t, label] of [['cfg', 'system.cfg'], ['ovr', 'system.ovr']]) {
@@ -140,26 +204,9 @@ function renderAnim() {
   const lg = $('#anim-legacy'); lg.hidden = !legacy.length;
   if (legacy.length) $('#anim-legacy-keys').innerHTML = legacy.map(k => `<code>${esc(k)}</code>`).join(' ');
   const g = $('#anim-grid'); g.innerHTML = '';
-  for (const a of ANIM) {
-    const val = getA(a.key), on = a.bool ? val === '1' : val !== undefined;
-    const c = cardHead(a.title, a.key, a.desc);
-    if (a.main) c.classList.add('card--main');
-    if (animChanged(a.key)) c.classList.add('is-changed');
-    c.querySelector('.card__head').append(sw(on, v => { setA(a.key, v ? a.max : undefined); update(); renderAnim(); }));
-    if (!a.bool) {
-      const row = el('div', 'row');
-      const seg = el('div', 'seg');
-      for (const p of a.presets) {
-        const b = el('button', val === p ? 'is-on' : '', p); b.type = 'button';
-        b.onclick = () => { setA(a.key, p); update(); renderAnim(); }; seg.append(b);
-      }
-      const inp = el('input', 'mono'); inp.type = 'text'; inp.style.width = '110px';
-      inp.value = on ? val : ''; inp.placeholder = 'своё';
-      inp.onchange = () => { const v = inp.value.trim().replace(/"/g, ''); setA(a.key, v === '' ? undefined : v); update(); renderAnim(); };
-      row.append(seg, inp); c.append(row);
-      if (!on) row.style.opacity = '.5';
-    }
-    g.append(c);
+  for (const [gid, gtitle] of ANIM_GROUPS) {
+    g.append(el('h2', 'grid__head', esc(gtitle)));
+    for (const a of ANIM.filter(x => x.group === gid)) g.append(animCard(a));
   }
   $('#ovr-extra').value = S.extra;
 }
@@ -437,10 +484,12 @@ $('#save-btn').onclick = save; $('#restore-btn').onclick = restore;
 $('#ovr-extra').oninput = e => { S.extra = e.target.value; update(); };
 $('#all-search').oninput = renderAll2;
 ['#new-key', '#new-val'].forEach(s => $(s).addEventListener('keydown', e => { if (e.key === 'Enter') $('#add-btn').click(); }));
-$('#add-btn').onclick = () => {
+$('#add-btn').onclick = async () => {
   const k = $('#new-key').value.trim(), v = $('#new-val').value.trim().replace(/"/g, '');
   if (!/^[A-Za-z0-9_.]+$/.test(k)) { toast(k ? 'Имя параметра — латиница, цифры, _ и точка, без пробелов.' : 'Впиши имя параметра в поле «Имя параметра».', true); $('#new-key').focus(); return; }
   if (!S.cfgDoc) return;
+  const known = /^(ac|ca|e|g|r|s|i|sys|es|gpu|d3d9|cl|con|p|mov|ai|cd|log|net|sv|v|ag|mfx|fg|pl|hud|cc|sw|sq|lua|t|demo|ban|gt)_/i;
+  if (!known.test(k) && !(await ask('Похоже на опечатку', `У параметра <code>${esc(k)}</code> незнакомый движку префикс. Например, <code>a_…</code> вместо <code>ca_…</code>. Всё равно добавить?`, 'Добавить'))) return;
   const had = S.cfg.has(k);
   S.cfg.set(k, v); $('#new-key').value = $('#new-val').value = ''; $('#all-search').value = k; update(); renderAll2();
   toast(had ? `Изменено: ${k} = "${v}". Не забудь «Сохранить».` : `Добавлено: ${k} = "${v}". Не забудь «Сохранить».`);
@@ -450,8 +499,8 @@ document.querySelectorAll('[data-preset]').forEach(b => b.onclick = () => {
   const p = b.dataset.preset;
   for (const a of ANIM) {
     if (p === 'off') setA(a.key, undefined);
-    else if (p === 'max') setA(a.key, a.max);
-    else if (p === 'main') { if (a.main) setA(a.key, a.max); }
+    else if (p === 'rec') setA(a.key, a.inRec ? a.rec : undefined);
+    else if (p === 'main') { if (a.main) setA(a.key, a.rec); }
   }
   update(); renderAnim(); renderAll2();
 });
