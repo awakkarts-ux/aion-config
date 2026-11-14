@@ -1,6 +1,6 @@
 {
   "name": "aion-config",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Aion Config: настройки клиента Aion (system.cfg) и переопределения system.ovr — анимации, графика, звук",
   "main": "src/main.js",

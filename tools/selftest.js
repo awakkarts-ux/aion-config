@@ -26,3 +26,18 @@ for (const text of [sample, crlf]) {
   assert.strictEqual(/\r\n/.test(out), /\r\n/.test(text), 'переводы строк сохраняются');
 }
 console.log('selftest: ok');
+
+/* contextBridge кладёт в окно неудаляемые свойства (`api`). Если скрипт окна
+   объявит на верхнем уровне то же имя, браузер не выполнит его целиком —
+   так v0.1.0 открывалась с мёртвыми кнопками. */
+const preload = fs.readFileSync(path.join(__dirname, '..', 'src', 'preload.js'), 'utf8');
+const exposed = [...preload.matchAll(/exposeInMainWorld\(\s*['"](\w+)['"]/g)].map(m => m[1]);
+assert.ok(exposed.length, 'preload выставляет api');
+for (const f of ['boot.js', 'cfg.js', 'app.js']) {
+  const code = fs.readFileSync(path.join(__dirname, '..', 'src', 'ui', f), 'utf8');
+  for (const name of exposed) {
+    const re = new RegExp(`^(?:const|let|var|class|function\\*?|async function)\\s+${name}\\b`, 'm');
+    assert.ok(!re.test(code), `${f}: на верхнем уровне объявлено имя «${name}», занятое preload`);
+  }
+}
+console.log('selftest: имена из preload не перекрыты');

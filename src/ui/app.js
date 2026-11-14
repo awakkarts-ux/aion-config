@@ -110,7 +110,7 @@ function renderAnim() {
       b.onclick = () => { S.anim[a.key] = p; update(); renderAnim(); }; seg.append(b);
     }
     const inp = el('input', 'mono'); inp.type = 'text'; inp.style.width = '110px';
-    inp.value = on ? S.anim[a.key] : ''; inp.placeholder = 'по умолчанию';
+    inp.value = on ? S.anim[a.key] : ''; inp.placeholder = 'своё';
     inp.onchange = () => { const v = inp.value.trim(); if (v === '') delete S.anim[a.key]; else S.anim[a.key] = v; update(); renderAnim(); };
     row.append(seg, inp); c.append(row);
     if (!on) row.style.opacity = '.5';
@@ -369,7 +369,6 @@ async function initUpdates() {
 }
 
 /* ---------------- события ---------------- */
-const api = window.api;
 document.querySelectorAll('.nav').forEach(n => n.onclick = () => show(n.dataset.view));
 $('#folder-btn').onclick = pickDir; $('#pick-btn').onclick = pickDir;
 $('#save-btn').onclick = save; $('#restore-btn').onclick = restore;
