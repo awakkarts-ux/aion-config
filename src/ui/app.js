@@ -14,6 +14,12 @@ const GFX_TOGGLES = [
   { key: 'r_DetailTextures', title: 'Детальные текстуры', desc: 'Мелкая детализация поверхностей вблизи.' },
   { key: 'r_FSAA', title: 'Сглаживание (FSAA)', desc: 'Убирает «лесенки» по краям.' },
   { key: 'g_chatlog', title: 'Лог чата в файл', desc: 'Клиент пишет Chat.log в папку игры. Нужен DPS-метрам.' },
+  { key: 'g_blade_fx', title: 'Следы от оружия', desc: 'Светящийся шлейф за клинком при ударах.' },
+  { key: 'g_uiFX', title: 'Эффекты интерфейса', desc: 'Анимация и свечение элементов интерфейса.' },
+  { key: 'ca_UseFacialAnimation', title: 'Мимика персонажей', desc: 'Анимация лиц. Выключение помогает в массовых боях.' },
+  { key: 'ca_UsePhysics', title: 'Физика персонажей', desc: 'Колыхание волос, плащей и одежды.' },
+  { key: 'e_vegetation_wind', title: 'Ветер в траве и деревьях', desc: 'Колыхание растительности.' },
+  { key: 'g_showFPS', title: 'Показывать FPS', desc: 'Счётчик кадров в игре.' },
   { key: 'sys_AdaptiveCharLOD', title: 'Упрощать дальних персонажей', desc: 'Дальние модели рисуются проще. Помогает в массовых боях.', float: true },
 ];
 const GFX_LEVELS = {
@@ -30,6 +36,7 @@ const SOUND = [
 ];
 const WINDOW = [
   { key: 'r_Fullscreen', title: 'Полный экран', type: 'toggle', desc: 'Выключено — игра в окне.' },
+  { key: 'g_maxfps', title: 'Ограничение FPS', type: 'int', desc: 'Максимум кадров в секунду. Работает вместе с защитой system.cfg от перезаписи.' },
   { key: 'r_Width', title: 'Ширина', type: 'int', desc: 'Разрешение по горизонтали, px.' },
   { key: 'r_Height', title: 'Высота', type: 'int', desc: 'Разрешение по вертикали, px.' },
   { key: 'r_MaximizeWindow', title: 'Развёрнутое окно', type: 'seg', options: [['0', 'нет'], ['1', 'да'], ['2', 'да (2)']], desc: 'Как клиент открывает окно при запуске.' },
@@ -45,6 +52,7 @@ const S = {
   dir: null,            // FileSystemDirectoryHandle или null (режим загрузки)
   cfgDoc: null, cfgOrig: new Map(), cfg: new Map(),
   ovrExists: false, ovrOrigText: '', anim: {}, animOrig: {}, extra: '', extraOrig: '',
+  animTarget: 'cfg', readOnly: false, readOnlyOrig: false,
   eol: '\r\n',
 };
 
@@ -60,6 +68,11 @@ function loadTexts(cfgText, ovrText) {
     else if (t.trim() !== '') extra.push(t);
   }
   S.animOrig = { ...S.anim }; S.extra = S.extraOrig = extra.join('\n');
+  // куда писать параметры анимаций: туда, где они уже есть, иначе — как выбрал раньше (по умолчанию system.cfg)
+  let pref = null; try { pref = localStorage.getItem('animTarget'); } catch {}
+  S.animTarget = ANIM.some(a => S.cfgOrig.has(a.key)) ? 'cfg' : Object.keys(S.anim).length ? 'ovr' : (pref || 'cfg');
+  // Classic читает только system.cfg: строки из system.ovr переносим, если пользователь сам не выбирал ovr
+  if (S.animTarget === 'ovr' && pref !== 'ovr') setAnimTarget('cfg');
   renderAll(); show('anim');
 }
 function buildOvr() {
@@ -70,13 +83,26 @@ function buildOvr() {
   return body.concat(extra).join(S.eol) + S.eol;
 }
 const buildCfg = () => serializeCfg(S.cfgDoc, S.cfg);
+const getA = k => S.animTarget === 'cfg' ? S.cfg.get(k) : S.anim[k];
+function setA(k, v) {
+  if (S.animTarget === 'cfg') { if (v === undefined) S.cfg.delete(k); else S.cfg.set(k, v); }
+  else { if (v === undefined) delete S.anim[k]; else S.anim[k] = v; }
+}
+const animChanged = k => S.cfg.get(k) !== S.cfgOrig.get(k) || S.anim[k] !== S.animOrig[k];
+function setAnimTarget(t) {
+  if (t === S.animTarget) return;
+  const vals = Object.fromEntries(ANIM.map(a => [a.key, getA(a.key)]));
+  for (const a of ANIM) setA(a.key, undefined);
+  S.animTarget = t; try { localStorage.setItem('animTarget', t); } catch {}
+  for (const a of ANIM) if (vals[a.key] !== undefined) setA(a.key, vals[a.key]);
+}
 const cfgChanged = k => S.cfg.get(k) !== S.cfgOrig.get(k);
 const ovrDirty = () => buildOvr() !== (S.ovrExists ? normalizeOvr(S.ovrOrigText) : '');
 function normalizeOvr(t) { // сравниваем по содержимому, а не по шапке и пробелам
   const save = { anim: S.anim, extra: S.extra };
   S.anim = { ...S.animOrig }; S.extra = S.extraOrig; const r = buildOvr(); S.anim = save.anim; S.extra = save.extra; return r;
 }
-function isDirty() { return buildCfg() !== serializeCfg(S.cfgDoc, S.cfgOrig) || ovrDirty(); }
+function isDirty() { return buildCfg() !== serializeCfg(S.cfgDoc, S.cfgOrig) || ovrDirty() || S.readOnly !== S.readOnlyOrig; }
 
 /* ---------------- отрисовка ---------------- */
 const $ = s => document.querySelector(s);
@@ -97,21 +123,32 @@ function sw(on, onChange) {
 const fmt = (v, digits) => digits ? Number(v).toFixed(digits) : String(Math.round(v));
 
 function renderAnim() {
+  const tg = $('#anim-target'); tg.innerHTML = '';
+  for (const [t, label] of [['cfg', 'system.cfg'], ['ovr', 'system.ovr']]) {
+    const b = el('button', S.animTarget === t ? 'is-on' : '', label); b.type = 'button';
+    b.onclick = () => { setAnimTarget(t); update(); renderAnim(); renderAll2(); }; tg.append(b);
+  }
+  $('#anim-target-note').innerHTML = S.animTarget === 'cfg'
+    ? 'Строки допишутся прямо в <code>system.cfg</code>. Клиент Classic читает только его — включи справа защиту от перезаписи, иначе игра сотрёт их при запуске.'
+    : 'Строки запишутся в отдельный <code>system.ovr</code>. Его читают только старые клиенты; Classic 2023 его игнорирует.';
+  const ro = $('#ro-switch'); ro.innerHTML = '';
+  ro.append(sw(S.readOnly, v => { S.readOnly = v; update(); renderAnim(); }));
+  $('#ro-card').classList.toggle('is-changed', S.readOnly !== S.readOnlyOrig);
   const g = $('#anim-grid'); g.innerHTML = '';
   for (const a of ANIM) {
-    const on = S.anim[a.key] !== undefined;
+    const val = getA(a.key), on = val !== undefined;
     const c = cardHead(a.title, a.key, a.desc);
-    if (S.anim[a.key] !== S.animOrig[a.key]) c.classList.add('is-changed');
-    c.querySelector('.card__head').append(sw(on, v => { if (v) S.anim[a.key] = a.max; else delete S.anim[a.key]; update(); renderAnim(); }));
+    if (animChanged(a.key)) c.classList.add('is-changed');
+    c.querySelector('.card__head').append(sw(on, v => { setA(a.key, v ? a.max : undefined); update(); renderAnim(); }));
     const row = el('div', 'row');
     const seg = el('div', 'seg');
     for (const p of a.presets) {
-      const b = el('button', S.anim[a.key] === p ? 'is-on' : '', p); b.type = 'button';
-      b.onclick = () => { S.anim[a.key] = p; update(); renderAnim(); }; seg.append(b);
+      const b = el('button', val === p ? 'is-on' : '', p); b.type = 'button';
+      b.onclick = () => { setA(a.key, p); update(); renderAnim(); }; seg.append(b);
     }
     const inp = el('input', 'mono'); inp.type = 'text'; inp.style.width = '110px';
-    inp.value = on ? S.anim[a.key] : ''; inp.placeholder = 'своё';
-    inp.onchange = () => { const v = inp.value.trim(); if (v === '') delete S.anim[a.key]; else S.anim[a.key] = v; update(); renderAnim(); };
+    inp.value = on ? val : ''; inp.placeholder = 'своё';
+    inp.onchange = () => { const v = inp.value.trim().replace(/"/g, ''); setA(a.key, v === '' ? undefined : v); update(); renderAnim(); };
     row.append(seg, inp); c.append(row);
     if (!on) row.style.opacity = '.5';
     g.append(c);
@@ -245,7 +282,7 @@ function update() {
   $('#save-btn').disabled = !dirty;
   const cnt = (keys) => keys.filter(k => cfgChanged(k)).length;
   const badges = {
-    anim: ANIM.filter(a => S.anim[a.key] !== S.animOrig[a.key]).length + (S.extra !== S.extraOrig ? 1 : 0),
+    anim: ANIM.filter(a => animChanged(a.key)).length + (S.extra !== S.extraOrig ? 1 : 0) + (S.readOnly !== S.readOnlyOrig ? 1 : 0),
     gfx: cnt([...new Set([...GFX_TOGGLES.map(t => t.key), ...[...S.cfg.keys()].filter(k => /^g_cfg_video_/.test(k))])]),
     sound: cnt(SOUND.map(s => s[0])),
     window: cnt(WINDOW.map(w => w.key)),
@@ -284,11 +321,11 @@ function applyLoaded(res) {
   if (!res) return false;
   if (res.error) { toast(res.error, true); return false; }
   if (res.canceled) return false;
-  S.dir = res.dir; loadTexts(res.cfg, res.ovr);
+  S.dir = res.dir; S.readOnly = S.readOnlyOrig = !!res.readOnly; loadTexts(res.cfg, res.ovr);
   const name = $('#folder-name'); name.innerHTML = ''; const bdi = document.createElement('bdi'); bdi.textContent = res.dir; name.append(bdi);
   $('#folder-btn').title = res.dir + '\nНажми, чтобы выбрать другую папку';
   $('#folder-dot').className = 'dot ok';
-  $('#folder-mode').textContent = res.ovr === null ? 'system.ovr ещё нет' : 'system.ovr есть';
+  $('#folder-mode').textContent = (res.readOnly ? 'system.cfg защищён от перезаписи' : 'system.cfg без защиты') + (res.ovr === null ? '' : ' · есть system.ovr');
   $('#restore-btn').disabled = !res.hasBackup;
   if (res.autoFound) { $('#found-path').textContent = res.dir; $('#foundbar').hidden = false; }
   else if (res.autoFound === false || res.written) $('#foundbar').hidden = true;
@@ -305,10 +342,10 @@ async function save() {
     if (!go) return;
   }
   try {
-    const res = await api.game.save({ dir: S.dir, cfg: buildCfg(), ovr: buildOvr() });
+    const res = await api.game.save({ dir: S.dir, cfg: buildCfg(), ovr: buildOvr(), readOnly: S.readOnly });
     applyLoaded(res);
     let files = (res.written || []).join('\n');
-    if ((res.written || []).length === 1) files += '\nsystem.ovr не записан: в нём нет ни одной строки (анимации выключены).';
+    if (res.readOnly) files += '\nsystem.cfg защищён от перезаписи (только чтение).';
     toast('Сохранено и проверено на диске:\n' + files, false, { label: 'Показать в папке', run: () => api.game.reveal(S.dir) }, 9000);
   } catch (e) { toast('Ошибка записи: ' + cleanErr(e), true); }
 }
@@ -394,11 +431,11 @@ $('#add-btn').onclick = () => {
 document.querySelectorAll('[data-preset]').forEach(b => b.onclick = () => {
   const p = b.dataset.preset;
   for (const a of ANIM) {
-    if (p === 'off') delete S.anim[a.key];
-    else if (p === 'max') S.anim[a.key] = a.max;
-    else if (p === 'blend') { if (/blend/.test(a.key)) S.anim[a.key] = a.max; }
+    if (p === 'off') setA(a.key, undefined);
+    else if (p === 'max') setA(a.key, a.max);
+    else if (p === 'blend') { if (/blend/.test(a.key)) setA(a.key, a.max); }
   }
-  update(); renderAnim();
+  update(); renderAnim(); renderAll2();
 });
 document.querySelectorAll('[data-download]').forEach(b => b.onclick = async () => {
   if (b.dataset.download === 'cfg') { if (await api.file.export('system.cfg', buildCfg())) toast('Копия сохранена.'); }

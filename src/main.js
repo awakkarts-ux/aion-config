@@ -36,8 +36,10 @@ const setConfig = (patch) => writeJson(configPath(), Object.assign(getConfig(), 
 const hasCfg = (dir) => !!dir && fs.existsSync(path.join(dir, 'system.cfg'));
 const readOrNull = (file) => (fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null);
 
-/** Запись через временный файл: при сбое старый файл остаётся целым. */
+/** Запись через временный файл: при сбое старый файл остаётся целым.
+    Защиту «только чтение» снимаем на время записи. */
 function writeAtomic(file, text) {
+  setReadOnly(file, false);
   const tmp = `${file}.tmp-${process.pid}`;
   fs.writeFileSync(tmp, text, 'utf8');
   fs.renameSync(tmp, file);
@@ -56,12 +58,18 @@ function findGameDir() {
   return candidates.find(hasCfg) || null;
 }
 
+/** «Только чтение»: на Windows это атрибут файла, Node меняет его через chmod. */
+const isReadOnly = (file) => { try { return (fs.statSync(file).mode & 0o200) === 0; } catch { return false; } };
+const setReadOnly = (file, on) => { if (fs.existsSync(file)) fs.chmodSync(file, on ? 0o444 : 0o666); };
+
 function load(dir) {
+  const cfgFile = path.join(dir, 'system.cfg');
   return {
     dir,
-    cfg: fs.readFileSync(path.join(dir, 'system.cfg'), 'utf8'),
+    cfg: fs.readFileSync(cfgFile, 'utf8'),
     ovr: readOrNull(path.join(dir, 'system.ovr')),
     hasBackup: fs.existsSync(path.join(dir, BK_CFG)),
+    readOnly: isReadOnly(cfgFile),
   };
 }
 
@@ -109,7 +117,7 @@ ipcMain.handle('game:reveal', (_e, dir) => {
   return true;
 });
 
-ipcMain.handle('game:save', (_e, { dir, cfg, ovr }) => {
+ipcMain.handle('game:save', (_e, { dir, cfg, ovr, readOnly }) => {
   if (!hasCfg(dir)) throw new Error('В папке нет system.cfg.');
   if (typeof cfg !== 'string' || typeof ovr !== 'string') throw new Error('Неверные данные.');
   const cfgFile = path.join(dir, 'system.cfg');
@@ -117,16 +125,19 @@ ipcMain.handle('game:save', (_e, { dir, cfg, ovr }) => {
   // резервные копии — один раз, до первой правки из программы
   if (!fs.existsSync(path.join(dir, BK_CFG))) {
     fs.copyFileSync(cfgFile, path.join(dir, BK_CFG));
+    setReadOnly(path.join(dir, BK_CFG), false);
     if (fs.existsSync(ovrFile)) fs.copyFileSync(ovrFile, path.join(dir, BK_OVR));
     else fs.writeFileSync(path.join(dir, BK_NONE), 'system.ovr не существовал до первой правки\r\n', 'utf8');
   }
   writeAtomic(cfgFile, cfg);
   if (ovr) writeAtomic(ovrFile, ovr);
-  else if (fs.existsSync(ovrFile)) fs.rmSync(ovrFile);
+  else if (fs.existsSync(ovrFile)) { setReadOnly(ovrFile, false); fs.rmSync(ovrFile); }
+  setReadOnly(cfgFile, !!readOnly);
   // перечитываем с диска: отчитываемся о том, что реально лежит в папке
   const res = load(dir);
   if (res.cfg !== cfg) throw new Error(`system.cfg не записался: ${cfgFile}`);
   if (ovr && res.ovr !== ovr) throw new Error(`system.ovr не записался: ${ovrFile}`);
+  if (res.readOnly !== !!readOnly) throw new Error(`Не удалось ${readOnly ? 'поставить' : 'снять'} «только чтение» у ${cfgFile}`);
   setConfig({ gameDirConfirmed: true });
   res.written = ovr ? [cfgFile, ovrFile] : [cfgFile];
   res.removedOvr = !ovr && res.ovr === null;
@@ -140,8 +151,8 @@ ipcMain.handle('game:restore', (_e, dir) => {
   const bkOvr = path.join(dir, BK_OVR);
   const ovrFile = path.join(dir, 'system.ovr');
   if (fs.existsSync(bkOvr)) writeAtomic(ovrFile, fs.readFileSync(bkOvr, 'utf8'));
-  else if (fs.existsSync(path.join(dir, BK_NONE)) && fs.existsSync(ovrFile)) fs.rmSync(ovrFile);
-  return load(dir);
+  else if (fs.existsSync(path.join(dir, BK_NONE)) && fs.existsSync(ovrFile)) { setReadOnly(ovrFile, false); fs.rmSync(ovrFile); }
+  return load(dir); // после возврата system.cfg снова без защиты
 });
 
 ipcMain.handle('file:export', async (_e, { name, text }) => {
