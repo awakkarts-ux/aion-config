@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('api', {
     restore: (dir) => call('game:restore', dir),
     running: () => call('game:running'),
     reveal: (dir) => call('game:reveal', dir),
+    confirm: () => call('game:confirm'),
   },
   file: {
     export: (name, text) => call('file:export', { name, text }),

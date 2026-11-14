@@ -28,6 +28,14 @@
   </div>
 </header>
 
+<div class="foundbar" id="foundbar" hidden>
+  <span class="foundbar__dot"></span>
+  <span>Нашёл папку игры: <code id="found-path"></code> Все правки будут записаны сюда.</span>
+  <div class="drag"></div>
+  <button class="btn btn--sm" id="found-other">Выбрать другую</button>
+  <button class="btn btn--sm btn--primary" id="found-ok">Да, эта</button>
+</div>
+
 <div class="shell">
   <nav class="rail" id="rail">
     <div class="rail__group">Настройки</div>
@@ -121,7 +129,7 @@
       <p class="lede">Так будут выглядеть файлы после сохранения. <span style="color:var(--yellow)">Жёлтым</span> — изменённые строки, <span style="color:var(--green)">зелёным</span> — новые.</p>
       <div class="files">
         <div class="card"><div class="card__head"><div><div class="card__title">system.cfg</div><div class="card__key" id="cfg-stat"></div></div>
-          <button class="btn btn--sm btn--ghost" data-download="cfg">Скачать</button></div><pre class="file" id="cfg-preview"></pre></div>
+          <button class="btn btn--sm btn--ghost" data-reveal>Показать в папке</button><button class="btn btn--sm btn--ghost" data-download="cfg">Скачать</button></div><pre class="file" id="cfg-preview"></pre></div>
         <div class="card"><div class="card__head"><div><div class="card__title">system.ovr</div><div class="card__key" id="ovr-stat"></div></div>
           <button class="btn btn--sm btn--ghost" data-download="ovr">Скачать</button></div><pre class="file" id="ovr-preview"></pre></div>
       </div>

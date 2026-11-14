@@ -285,16 +285,18 @@ function applyLoaded(res) {
   if (res.error) { toast(res.error, true); return false; }
   if (res.canceled) return false;
   S.dir = res.dir; loadTexts(res.cfg, res.ovr);
-  $('#folder-name').textContent = res.dir.split(/[\\/]/).filter(Boolean).pop() || res.dir;
+  const name = $('#folder-name'); name.innerHTML = ''; const bdi = document.createElement('bdi'); bdi.textContent = res.dir; name.append(bdi);
   $('#folder-btn').title = res.dir + '\nНажми, чтобы выбрать другую папку';
   $('#folder-dot').className = 'dot ok';
   $('#folder-mode').textContent = res.ovr === null ? 'system.ovr ещё нет' : 'system.ovr есть';
   $('#restore-btn').disabled = !res.hasBackup;
+  if (res.autoFound) { $('#found-path').textContent = res.dir; $('#foundbar').hidden = false; }
+  else if (res.autoFound === false || res.written) $('#foundbar').hidden = true;
   return true;
 }
 async function pickDir() {
   if (S.cfgDoc && isDirty() && !(await ask('Открыть другую папку?', 'Несохранённые правки пропадут.', 'Открыть'))) return;
-  try { applyLoaded(await api.game.pick()); } catch (e) { toast('Не удалось открыть папку: ' + e.message, true); }
+  try { const r = await api.game.pick(); if (applyLoaded(r)) $('#foundbar').hidden = true; } catch (e) { toast('Не удалось открыть папку: ' + cleanErr(e), true); }
 }
 async function save() {
   if (!S.cfgDoc || $('#save-btn').disabled) return;
@@ -303,8 +305,11 @@ async function save() {
     if (!go) return;
   }
   try {
-    applyLoaded(await api.game.save({ dir: S.dir, cfg: buildCfg(), ovr: buildOvr() }));
-    toast('Сохранено. Запускай игру.');
+    const res = await api.game.save({ dir: S.dir, cfg: buildCfg(), ovr: buildOvr() });
+    applyLoaded(res);
+    let files = (res.written || []).join('\n');
+    if ((res.written || []).length === 1) files += '\nsystem.ovr не записан: в нём нет ни одной строки (анимации выключены).';
+    toast('Сохранено и проверено на диске:\n' + files, false, { label: 'Показать в папке', run: () => api.game.reveal(S.dir) }, 9000);
   } catch (e) { toast('Ошибка записи: ' + cleanErr(e), true); }
 }
 async function restore() {
@@ -316,7 +321,12 @@ async function restore() {
 const cleanErr = e => String(e && e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
 
 let toastT;
-function toast(msg, err) { const t = $('#toast'); t.textContent = msg; t.classList.toggle('err', !!err); t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 4200); }
+function toast(msg, err, action, ms) {
+  const t = $('#toast'); t.innerHTML = '';
+  const text = el('span', 'toast__text'); text.textContent = msg; t.append(text);
+  if (action) { const b = el('button', 'btn btn--sm', esc(action.label)); b.onclick = () => { action.run(); t.classList.remove('show'); }; t.append(b); }
+  t.classList.toggle('err', !!err); t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), ms || 4200);
+}
 
 /* ---------------- иконки меню ---------------- */
 const IC = {
@@ -370,7 +380,9 @@ async function initUpdates() {
 
 /* ---------------- события ---------------- */
 document.querySelectorAll('.nav').forEach(n => n.onclick = () => show(n.dataset.view));
-$('#folder-btn').onclick = pickDir; $('#pick-btn').onclick = pickDir;
+$('#folder-btn').onclick = pickDir; $('#pick-btn').onclick = pickDir; $('#found-other').onclick = pickDir;
+$('#found-ok').onclick = () => { $('#foundbar').hidden = true; api.game.confirm(); };
+document.querySelectorAll('[data-reveal]').forEach(b => b.onclick = () => S.dir && api.game.reveal(S.dir));
 $('#save-btn').onclick = save; $('#restore-btn').onclick = restore;
 $('#ovr-extra').oninput = e => { S.extra = e.target.value; update(); };
 $('#all-search').oninput = renderAll2;

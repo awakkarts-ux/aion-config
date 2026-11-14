@@ -77,11 +77,15 @@ function gameRunning() {
 }
 
 ipcMain.handle('game:init', () => {
+  const saved = getConfig().gameDir;
+  const confirmed = !!getConfig().gameDirConfirmed && saved && hasCfg(saved);
   const dir = findGameDir();
   if (!dir) return null;
   setConfig({ gameDir: dir });
-  return load(dir);
+  // папку нашли сами — пусть пользователь увидит путь и подтвердит его
+  return Object.assign(load(dir), { autoFound: !confirmed });
 });
+ipcMain.handle('game:confirm', () => setConfig({ gameDirConfirmed: true }));
 
 ipcMain.handle('game:pick', async () => {
   const res = await dialog.showOpenDialog(win, {
@@ -92,13 +96,18 @@ ipcMain.handle('game:pick', async () => {
   if (res.canceled || !res.filePaths[0]) return { canceled: true };
   const dir = res.filePaths[0];
   if (!hasCfg(dir)) return { error: `В папке «${path.basename(dir)}» нет system.cfg. Выбери корневую папку клиента.` };
-  setConfig({ gameDir: dir });
+  setConfig({ gameDir: dir, gameDirConfirmed: true });
   return load(dir);
 });
 
 ipcMain.handle('game:reload', (_e, dir) => (hasCfg(dir) ? load(dir) : { error: 'system.cfg пропал из папки.' }));
 ipcMain.handle('game:running', () => gameRunning());
-ipcMain.handle('game:reveal', (_e, dir) => (hasCfg(dir) ? shell.openPath(dir) : null));
+ipcMain.handle('game:reveal', (_e, dir) => {
+  if (!hasCfg(dir)) return null;
+  const ovr = path.join(dir, 'system.ovr');
+  shell.showItemInFolder(fs.existsSync(ovr) ? ovr : path.join(dir, 'system.cfg'));
+  return true;
+});
 
 ipcMain.handle('game:save', (_e, { dir, cfg, ovr }) => {
   if (!hasCfg(dir)) throw new Error('В папке нет system.cfg.');
@@ -114,7 +123,14 @@ ipcMain.handle('game:save', (_e, { dir, cfg, ovr }) => {
   writeAtomic(cfgFile, cfg);
   if (ovr) writeAtomic(ovrFile, ovr);
   else if (fs.existsSync(ovrFile)) fs.rmSync(ovrFile);
-  return load(dir);
+  // перечитываем с диска: отчитываемся о том, что реально лежит в папке
+  const res = load(dir);
+  if (res.cfg !== cfg) throw new Error(`system.cfg не записался: ${cfgFile}`);
+  if (ovr && res.ovr !== ovr) throw new Error(`system.ovr не записался: ${ovrFile}`);
+  setConfig({ gameDirConfirmed: true });
+  res.written = ovr ? [cfgFile, ovrFile] : [cfgFile];
+  res.removedOvr = !ovr && res.ovr === null;
+  return res;
 });
 
 ipcMain.handle('game:restore', (_e, dir) => {

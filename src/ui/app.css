@@ -68,7 +68,9 @@ code { font-family: var(--mono); font-size: 12px; background: var(--bg-deep); pa
 @media (max-width: 1360px) { .tb-title { display: none; } .titlebar .btn { padding: 0 16px; } }
 
 /* каркас */
-.shell { display: flex; gap: var(--gap); height: calc(100% - 78px); padding: 0 var(--gap) var(--gap); }
+body { display: flex; flex-direction: column; }
+.titlebar { flex: none; }
+.shell { display: flex; gap: var(--gap); flex: 1; min-height: 0; padding: 0 var(--gap) var(--gap); }
 .rail { width: 264px; flex: none; background: var(--bg-surface); border-radius: var(--radius-lg); display: flex; flex-direction: column; padding: 16px; gap: 4px; overflow-y: auto; }
 .rail__group { font-size: 12px; font-weight: 500; color: var(--text-faint); padding: 4px 8px; }
 .rail__group:not(:first-child) { margin-top: 16px; }
@@ -220,3 +222,18 @@ pre.file .cmt { color: var(--text-faint); }
 
 .fatal { position: fixed; left: 16px; right: 16px; bottom: 16px; z-index: 100; white-space: pre-wrap; user-select: text;
   background: #2a1414; border: 1px solid rgba(255,95,95,.5); color: #ffd6d6; border-radius: var(--radius); padding: 14px 18px; font: 12.5px/1.5 var(--mono); }
+
+/* найденная автоматически папка: показываем путь и просим подтвердить */
+.foundbar { flex: none; display: flex; align-items: center; gap: 12px; margin: 0 var(--gap) var(--gap); padding: 10px 12px 10px 18px;
+  border-radius: var(--radius); background: rgba(255,173,92,.08); border: 1px solid rgba(255,173,92,.22); color: #f3d2b3; }
+.foundbar code { font-size: 12.5px; }
+.foundbar__dot { width: 8px; height: 8px; border-radius: 4px; background: var(--yellow); flex: none; }
+.foundbar .drag { flex: 1; }
+/* путь в шапке: длинный обрезаем слева, чтобы была видна папка */
+.tb-chip { max-width: 520px; }
+.tb-chip b { direction: rtl; text-align: left; max-width: 100%; }
+.tb-chip b bdi { direction: ltr; unicode-bidi: isolate; }
+.toast { display: flex; align-items: center; gap: 14px; pointer-events: none; }
+.toast.show { pointer-events: auto; }
+.toast .btn { flex: none; }
+.toast__text { white-space: pre-line; }
