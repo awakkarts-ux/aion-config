@@ -1,11 +1,13 @@
 'use strict';
 /* ---------------- справочник параметров ---------------- */
 const ANIM = [
-  { key: 'g_blend_time', title: 'Переход в анимацию', desc: 'Время плавного входа в следующее движение. Меньше — резче и быстрее.', presets: ['0.1', '0.05', '0.01', '0.0001'], max: '0.0001' },
-  { key: 'g_blendout_time', title: 'Выход из анимации', desc: 'Время плавного выхода из движения в стойку. Меньше — персонаж раньше освобождается после умения.', presets: ['0.1', '0.05', '0.01', '0.0001'], max: '0.0001' },
-  { key: 'g_chainSkillIndicateDelay', title: 'Подсветка цепочки', desc: 'Задержка, с которой появляется подсветка следующего умения в цепочке.', presets: ['0.1', '0.01', '0.001'], max: '0.001' },
-  { key: 'g_chainSkillChangeCooltimeDelay', title: 'Смена умения в цепочке', desc: 'Задержка перед сменой иконки цепочного умения на следующее.', presets: ['0.1', '0.01', '0.001'], max: '0.001' },
+  { key: 'ac_disableFancyTransitions', title: 'Без плавных переходов', bool: true, max: '1', main: true,
+    desc: 'Отключает плавное перетекание одного движения в другое: персонаж сразу переходит из бега в умение и из умения в стойку. Проверено на Aion Empire (Classic) — анимации заметно резче.' },
+  { key: 'g_chainSkillIndicateDelay', title: 'Подсветка цепочки', desc: 'Задержка, с которой появляется подсветка следующего умения в цепочке. На Classic не проверено.', presets: ['0.1', '0.01', '0.001'], max: '0.001' },
+  { key: 'g_chainSkillChangeCooltimeDelay', title: 'Смена умения в цепочке', desc: 'Задержка перед сменой иконки цепочного умения на следующее. На Classic не проверено.', presets: ['0.1', '0.01', '0.001'], max: '0.001' },
 ];
+/* Строки, которые проверили на Classic 2023 и которые ничего не дают: предлагаем убрать. */
+const LEGACY = ['g_blend_time', 'g_blendout_time'];
 const GFX_TOGGLES = [
   { key: 'e_beach', title: 'Пляжи и прибой', desc: 'Пена и волны у берега.' },
   { key: 'e_weather_fx_enable', title: 'Погодные эффекты', desc: 'Дождь, снег, туман.' },
@@ -134,23 +136,29 @@ function renderAnim() {
   const ro = $('#ro-switch'); ro.innerHTML = '';
   ro.append(sw(S.readOnly, v => { S.readOnly = v; update(); renderAnim(); }));
   $('#ro-card').classList.toggle('is-changed', S.readOnly !== S.readOnlyOrig);
+  const legacy = LEGACY.filter(k => S.cfg.has(k));
+  const lg = $('#anim-legacy'); lg.hidden = !legacy.length;
+  if (legacy.length) $('#anim-legacy-keys').innerHTML = legacy.map(k => `<code>${esc(k)}</code>`).join(' ');
   const g = $('#anim-grid'); g.innerHTML = '';
   for (const a of ANIM) {
-    const val = getA(a.key), on = val !== undefined;
+    const val = getA(a.key), on = a.bool ? val === '1' : val !== undefined;
     const c = cardHead(a.title, a.key, a.desc);
+    if (a.main) c.classList.add('card--main');
     if (animChanged(a.key)) c.classList.add('is-changed');
     c.querySelector('.card__head').append(sw(on, v => { setA(a.key, v ? a.max : undefined); update(); renderAnim(); }));
-    const row = el('div', 'row');
-    const seg = el('div', 'seg');
-    for (const p of a.presets) {
-      const b = el('button', val === p ? 'is-on' : '', p); b.type = 'button';
-      b.onclick = () => { setA(a.key, p); update(); renderAnim(); }; seg.append(b);
+    if (!a.bool) {
+      const row = el('div', 'row');
+      const seg = el('div', 'seg');
+      for (const p of a.presets) {
+        const b = el('button', val === p ? 'is-on' : '', p); b.type = 'button';
+        b.onclick = () => { setA(a.key, p); update(); renderAnim(); }; seg.append(b);
+      }
+      const inp = el('input', 'mono'); inp.type = 'text'; inp.style.width = '110px';
+      inp.value = on ? val : ''; inp.placeholder = 'своё';
+      inp.onchange = () => { const v = inp.value.trim().replace(/"/g, ''); setA(a.key, v === '' ? undefined : v); update(); renderAnim(); };
+      row.append(seg, inp); c.append(row);
+      if (!on) row.style.opacity = '.5';
     }
-    const inp = el('input', 'mono'); inp.type = 'text'; inp.style.width = '110px';
-    inp.value = on ? val : ''; inp.placeholder = 'своё';
-    inp.onchange = () => { const v = inp.value.trim().replace(/"/g, ''); setA(a.key, v === '' ? undefined : v); update(); renderAnim(); };
-    row.append(seg, inp); c.append(row);
-    if (!on) row.style.opacity = '.5';
     g.append(c);
   }
   $('#ovr-extra').value = S.extra;
@@ -337,6 +345,11 @@ async function pickDir() {
 }
 async function save() {
   if (!S.cfgDoc || $('#save-btn').disabled) return;
+  const animInCfg = ANIM.some(a => S.cfg.has(a.key));
+  if (animInCfg && !S.readOnly) {
+    const go = await ask('Включить защиту от перезаписи?', 'Параметры анимаций дописаны в <code>system.cfg</code>. Без атрибута «Только чтение» клиент сбросит их при запуске, и они не сработают.', 'Включить и сохранить', { cancel: 'Сохранить без защиты' });
+    if (go) { S.readOnly = true; renderAnim(); }
+  }
   if (await api.game.running()) {
     const go = await ask('Игра запущена', 'При выходе клиент перезапишет <code>system.cfg</code> своими значениями, и правки графики и звука пропадут. <code>system.ovr</code> он не трогает, но прочитает его только при следующем запуске.<br><br>Лучше закрыть игру и сохранить потом.', 'Всё равно сохранить', { danger: true });
     if (!go) return;
@@ -432,12 +445,13 @@ $('#add-btn').onclick = () => {
   S.cfg.set(k, v); $('#new-key').value = $('#new-val').value = ''; $('#all-search').value = k; update(); renderAll2();
   toast(had ? `Изменено: ${k} = "${v}". Не забудь «Сохранить».` : `Добавлено: ${k} = "${v}". Не забудь «Сохранить».`);
 };
+$('#legacy-remove').onclick = () => { for (const k of LEGACY) S.cfg.delete(k); update(); renderAnim(); renderAll2(); toast('Строки убраны. Не забудь «Сохранить».'); };
 document.querySelectorAll('[data-preset]').forEach(b => b.onclick = () => {
   const p = b.dataset.preset;
   for (const a of ANIM) {
     if (p === 'off') setA(a.key, undefined);
     else if (p === 'max') setA(a.key, a.max);
-    else if (p === 'blend') { if (/blend/.test(a.key)) setA(a.key, a.max); }
+    else if (p === 'main') { if (a.main) setA(a.key, a.max); }
   }
   update(); renderAnim(); renderAll2();
 });

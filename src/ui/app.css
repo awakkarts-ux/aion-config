@@ -250,3 +250,7 @@ pre.file .cmt { color: var(--text-faint); }
 .search input { flex: 1; background: transparent; padding-left: 0; }
 .search input:focus { border-color: transparent; }
 .search:focus-within { box-shadow: inset 0 0 0 1px rgba(255,255,255,.22); }
+
+.card--main { grid-column: 1 / -1; background: linear-gradient(135deg, rgba(255,106,61,.10), rgba(155,92,255,.06) 60%), var(--bg-card); }
+.card--main .card__title { font-size: 15px; }
+.notice .btn { align-self: center; }

@@ -82,14 +82,18 @@
       </div>
       <div class="banner">
         <b>Быстрые переходы между анимациями</b>
-        <p>Главное здесь — <code style="background:rgba(0,0,0,.25);color:#fff">g_blend_time</code> и <code style="background:rgba(0,0,0,.25);color:#fff">g_blendout_time</code>:
-          время плавного перехода от одного движения к другому. Почти ноль — персонаж сразу выходит из умения в следующее действие.
-          Значения взяты из гайдов сообщества и официально не описаны. Сохрани с защитой от перезаписи и проверь в игре.</p>
+        <p>Главное здесь — <code style="background:rgba(0,0,0,.25);color:#fff">ac_disableFancyTransitions</code>: без плавных переходов персонаж сразу
+          выходит из умения в следующее действие. Пишется в <code style="background:rgba(0,0,0,.25);color:#fff">system.cfg</code> и работает только с защитой от перезаписи.</p>
+      </div>
+      <div class="notice" id="anim-legacy" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16v.5"/></svg>
+        <span style="flex:1">В <code>system.cfg</code> остались строки <span id="anim-legacy-keys"></span>. На Classic 2023 они ничего не меняют.</span>
+        <button class="btn btn--sm" id="legacy-remove">Убрать</button>
       </div>
       <div class="row" style="margin-bottom:14px">
         <span class="muted">Быстро:</span>
-        <button class="btn btn--sm" data-preset="max">Всё на максимум</button>
-        <button class="btn btn--sm" data-preset="blend">Только переходы</button>
+        <button class="btn btn--sm" data-preset="main">Только быстрые переходы</button>
+        <button class="btn btn--sm" data-preset="max">Включить всё</button>
         <button class="btn btn--sm btn--ghost" data-preset="off">Выключить всё</button>
       </div>
       <div class="grid" id="anim-grid"></div>
