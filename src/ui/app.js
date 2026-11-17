@@ -11,6 +11,14 @@ const ANIM_GROUPS = [
 const ANIM = [
   { key: 'ac_disableFancyTransitions', group: 'anim', kind: 'bool', rec: '1', main: true, inRec: true, status: 'ok',
     title: 'Без плавных переходов', desc: '1 — персонаж сразу переходит из бега в умение и из умения в стойку, без плавного перетекания. 0 — обычные переходы.' },
+  { key: 'g_useTransitionAnimation', group: 'anim', kind: 'bool', rec: '0', status: 'unknown',
+    title: 'Промежуточные анимации', desc: '0 — без промежуточных движений вроде перехода в боевую стойку. 1 — как обычно.' },
+  { key: 'g_useRotateAnimation', group: 'anim', kind: 'bool', rec: '0', status: 'unknown',
+    title: 'Анимация разворота', desc: '0 — персонаж разворачивается без анимации поворота на месте. 1 — как обычно.' },
+  { key: 'g_blend_time', group: 'anim', kind: 'num', rec: '0.04', presets: ['0.1', '0.04', '0.0001'], status: 'none',
+    title: 'Время входа в анимацию', desc: 'Плавность перехода в следующее движение. Меньше — резче.' },
+  { key: 'g_blendout_time', group: 'anim', kind: 'num', rec: '0.04', presets: ['0.1', '0.04', '0.0001'], status: 'none',
+    title: 'Время выхода из анимации', desc: 'Плавность выхода из движения в стойку. Меньше — резче.' },
   { key: 'ac_clampTimeAnimation', group: 'anim', kind: 'num', rec: '0', presets: ['0.3', '0.1', '0'], status: 'none',
     title: 'Подтягивание анимации', desc: 'За сколько секунд движок «дотягивает» анимацию до реального положения персонажа. По умолчанию около 0.3.' },
   { key: 'ac_clampTimeEntity', group: 'anim', kind: 'num', rec: '0', presets: ['0.3', '0.1', '0'], status: 'none',
@@ -21,9 +29,9 @@ const ANIM = [
     title: 'Загружать анимации заранее', desc: '1 — без подвисания при первом применении умения после входа в игру.' },
   { key: 'ca_UseAnimationsCache', group: 'load', kind: 'bool', rec: '1', inRec: true, status: 'safe',
     title: 'Кеш анимаций', desc: '1 — анимации держатся в памяти, меньше микрофризов.' },
-  { key: 'g_chainSkillIndicateDelay', group: 'chain', kind: 'num', rec: '0.001', presets: ['0.1', '0.01', '0.001'], status: 'unknown',
+  { key: 'g_chainSkillIndicateDelay', group: 'chain', kind: 'num', rec: '0.001', presets: ['0.1', '0.06', '0.01', '0.001'], status: 'unknown',
     title: 'Подсветка цепочки', desc: 'Задержка, с которой появляется подсветка следующего умения в цепочке.' },
-  { key: 'g_chainSkillChangeCooltimeDelay', group: 'chain', kind: 'num', rec: '0.001', presets: ['0.1', '0.01', '0.001'], status: 'unknown',
+  { key: 'g_chainSkillChangeCooltimeDelay', group: 'chain', kind: 'num', rec: '0.001', presets: ['0.1', '0.06', '0.01', '0.001'], status: 'unknown',
     title: 'Смена умения в цепочке', desc: 'Задержка перед сменой иконки цепочного умения на следующее.' },
   { key: 'i_mouse_smooth', group: 'input', kind: 'num', rec: '0', presets: ['0', '1', '5'], inRec: true, status: 'safe',
     title: 'Сглаживание мыши', desc: '0 — выключено, камера сразу отзывается на мышь. Больше — плавнее, но с запаздыванием.' },
@@ -39,8 +47,10 @@ const STATUS = {
   none: ['разницы не заметили', 'st--none'], unknown: ['не проверено', 'st--unknown'],
 };
 /* Строки, которые проверили на Classic 2023 и которые ничего не дают: предлагаем убрать. */
-const LEGACY = ['g_blend_time', 'g_blendout_time'];
+const LEGACY = []; // строки, которые стоит предложить убрать (сейчас нет)
 const GFX_TOGGLES = [
+  { key: 'e_shadow_maps', title: 'Тени', desc: 'Карты теней. Выключение заметно поднимает FPS.' },
+  { key: 'e_flocks', title: 'Стаи птиц и рыб', desc: 'Фоновые стаи в локациях.' },
   { key: 'e_beach', title: 'Пляжи и прибой', desc: 'Пена и волны у берега.' },
   { key: 'e_weather_fx_enable', title: 'Погодные эффекты', desc: 'Дождь, снег, туман.' },
   { key: 'r_WaterReflections', title: 'Отражения в воде', desc: 'Сильно влияет на FPS у воды.' },
@@ -156,6 +166,8 @@ function sw(on, onChange) {
 }
 const fmt = (v, digits) => digits ? Number(v).toFixed(digits) : String(Math.round(v));
 
+/* "0.040000" и "0.04" — одно значение: сравниваем как числа */
+const sameNum = (x, y) => x !== undefined && (x === y || (x.trim() !== '' && !isNaN(x) && Number(x) === Number(y)));
 function animCard(a) {
   const val = getA(a.key), on = val !== undefined;
   const c = cardHead(a.title, a.key, a.desc);
@@ -168,13 +180,13 @@ function animCard(a) {
   const row = el('div', 'row');
   const seg = el('div', 'seg');
   for (const p of a.kind === 'bool' ? ['0', '1'] : a.presets) {
-    const b = el('button', val === p ? 'is-on' : '', p + (p === a.rec ? ' <i>реком.</i>' : '')); b.type = 'button';
+    const b = el('button', sameNum(val, p) ? 'is-on' : '', p + (p === a.rec ? ' <i>реком.</i>' : '')); b.type = 'button';
     b.onclick = () => { setA(a.key, p); update(); renderAnim(); }; seg.append(b);
   }
   row.append(seg);
   if (a.kind === 'num') {
     const inp = el('input', 'mono'); inp.type = 'text'; inp.style.width = '110px';
-    inp.value = on && !a.presets.includes(val) ? val : ''; inp.placeholder = 'своё';
+    inp.value = on && !a.presets.some(p => sameNum(val, p)) ? val : ''; inp.placeholder = 'своё';
     inp.onchange = () => {
       const v = inp.value.trim().replace(',', '.').replace(/"/g, '');
       if (v !== '' && !/^-?\d+(\.\d+)?$/.test(v)) { toast('Значение — число, например 0.05', true); inp.value = ''; return; }
